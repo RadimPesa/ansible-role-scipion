@@ -1,0 +1,71 @@
+---
+# tasks file for scipion
+- name: Install Scipion prerequisities
+  apt: name={{ item }} state=present
+  with_items:
+   - openjdk-8-jdk
+   - libopenmpi-dev
+   - openmpi-bin
+   - gfortran
+   - libxft2
+   - libxss1
+
+# donwload a unpack package
+- unarchive:
+   src: "{{ binary_url }}"
+   dest: /opt
+   remote_src: True
+
+- name: Change owner
+  file:
+    path: "{{ scipion_home_dir }}"
+    owner: "{{ user_name }}"
+    group: "{{ user_name }}"
+    recurse: yes
+
+- name: Run config
+  command: "/usr/bin/python {{ scipion_home_dir }}/scipion config"
+  become: yes
+  become_user: "{{ user_name }}"
+
+
+- name: Create directory /services
+  file:
+    path: /services
+    state: directory
+    owner: "{{ user_name }}"
+    group: "{{ user_name }}"
+
+- name: Web protocols
+    blockinfile:
+      dest: "{{ scipion_config_file }}"
+      block: |
+        [WEB_PROTOCOLS]
+        XmippProtRansac = {"useQueue": 0, "numberOfThreads": 4, "numberOfMpi": 1, "queueParams" : ["cpu", {"JOB_MEMORY": "8192", "JOB_TIME": "72"}]}
+        EmanProtInitModel = {"useQueue": 0, "numberOfThreads": 4, "numberOfMpi": 1, "queueParams" : ["cpu", {"JOB_MEMORY": "8192", "JOB_TIME": "72"}]}
+        XmippProtReconstructSignificant = {"useQueue": 0, "numberOfThreads": 1, "numberOfMpi": {{ number_of_mpi }}, "queueParams" : ["cpu", {"JOB_MEMORY": "8192", "JOB_TIME": "72"}]}
+        XmippProtAlignVolumeForWeb = {"useQueue": 0, "numberOfThreads": 4, "numberOfMpi": 1, "queueParams" : ["cpu", {"JOB_MEMORY": "8192", "JOB_TIME": "72"}]}
+        ProtMovieAlignment = {"useQueue": 0, "numberOfThreads": 1, "numberOfMpi": 1, "queueParams" : ["gpu", {"JOB_MEMORY": "8192", "JOB_TIME": "72"}]}
+        XmippProtCreateMask3D = {"useQueue": 0, "numberOfThreads": 1, "numberOfMpi": 1, "queueParams" : ["cpu", {"JOB_MEMORY": "8192", "JOB_TIME": "72"}]}
+        ProtResMap = {"useQueue": 0, "numberOfThreads": 1, "numberOfMpi": 1, "queueParams" : ["cpu", {"JOB_MEMORY": "8192", "JOB_TIME": "72"}]}
+
+- name: Extract sh_alignment
+    unarchive:
+      src: "{{ alig_url }}"
+      dest: "{{ scipion_home_dir }}/software/lib/python2.7/site-packages/"
+      remote_src: True
+
+- name: Change hosts.conf - PARALLEL_COMMAND
+    lineinfile:
+      dest: "{{ scipion_home_dir }}/config/hosts.conf"
+      regexp: '^PARALLEL_COMMAND'
+#    line: "PARALLEL_COMMAND = /usr/lib64/openmpi/bin/mpirun -hostfile /home/centos/mpi_hosts -np %_(JOB_NODES)d -bynode -x LD_LIBRARY_PATH={{ scipion_home_dir }}/software/lib:$LD_LIBRARY_PATH -x PATH={{ scipion_home_dir }}/software/em/xmipp/bin:$PATH %_(COMMAND)s"
+      line: "PARALLEL_COMMAND = {{ mpi_bin_dir }}/mpirun -hostfile {{ home_dir }}/mpi_hosts --mca pml ob1 -np %_(JOB_NODES)d --mca plm_rsh_no_tree_spawn true --map-by node -x LD_LIBRARY_PATH={{ scipion_home_dir }}/software/lib:$LD_LIBRARY_PATH -x PATH={{ scipion_home_dir }}/software/em/xmipp/bin:$PATH %_(COMMAND)s"
+
+#- name: Change mpi hostfile
+#    lineinfile:
+#      dest: "{{ mpi_hosts_file }}"
+#      state: present
+#      create: yes
+#      line: "{{ hostvars[item].inventory_hostname }}"
+#     with_items: "{{ groups['worker_servers'] }}"
