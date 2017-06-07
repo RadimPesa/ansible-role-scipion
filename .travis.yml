@@ -15,4 +15,5 @@ install:
 
 script:
   # Check the role/playbook's syntax.
+  - cat ansible.cfg
   - ansible-playbook -i tests/inventory tests/test.yml --syntax-check
