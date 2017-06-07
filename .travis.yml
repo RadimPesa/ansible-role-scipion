@@ -12,8 +12,11 @@ install:
 
   # Add ansible.cfg to pick up roles path.
   - "printf '[defaults]\n' > ansible.cfg"
-  - "printf 'roles_path = ../' >> ansible.cfg"
+  
 script:
   # Check the role/playbook's syntax.
   - cat ansible.cfg
   - ansible-playbook -i tests/inventory tests/test.yml --syntax-check
+
+notifications:
+  webhooks: https://galaxy.ansible.com/api/v1/notifications/
